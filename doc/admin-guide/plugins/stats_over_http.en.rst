@@ -109,9 +109,16 @@ Prometheus formatted output is also supported via the ``Accept`` header:
 
 .. option:: Accept: text/plain; version=0.0.4
 
+An enhanced Prometheus v2 format is also available, which parses metric names into
+labels for better aggregation in Grafana and Prometheus. This format converts flattened
+metric names (e.g., ``proxy.process.http.200_responses``) into proper labels like
+``status="200"`` or ``method="GET"``. The v2 format can be requested via the ``Accept`` header:
+
+.. option:: Accept: text/plain; version=2.0.0
+
 Alternatively, the output format can be specified as a suffix to the configured
 path in the HTTP request target.  The supported suffixes are ``/json``,
-``/csv``, and ``/prometheus``.  For example, if the path is set to ``/_stats``
+``/csv``, ``/prometheus``, and ``/prometheus_v2``.  For example, if the path is set to ``/_stats``
 (the default), you can access the stats in CSV format by using the URL::
 
     http://host:port/_stats/csv
@@ -119,6 +126,10 @@ path in the HTTP request target.  The supported suffixes are ``/json``,
 The Prometheus format can be requested by using the URL::
 
     http://host:port/_stats/prometheus
+
+The Prometheus v2 format with labels can be requested by using the URL::
+
+    http://host:port/_stats/prometheus_v2
 
 The JSON format is the default, but you can also access it explicitly by using the URL::
 
@@ -129,9 +140,10 @@ specify a path suffix, the plugin will return the data in that format regardless
 the ``Accept`` header.
 
 In either case the ``Content-Type`` header returned by ``stats_over_http.so`` will
-reflect the content that has been returned: ``text/json``, ``text/csv``, or
-``text/plain; version=0.0.4; charset=utf-8`` for JSON, CSV, and Prometheus
-formats respectively.
+reflect the content that has been returned: ``text/json``, ``text/csv``,
+``text/plain; version=0.0.4; charset=utf-8``, or
+``text/plain; version=2.0.0; charset=utf-8`` for JSON, CSV, Prometheus, and
+Prometheus v2 formats respectively.
 
 Stats over http also accepts returning data in gzip or br compressed format per the
 ``Accept-encoding`` header. If the header is present, the plugin will return the

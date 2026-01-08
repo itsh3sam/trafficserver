@@ -703,33 +703,39 @@ prometheus_v2_out_stat(TSRecordType /* rec_type ATS_UNUSED */, void *edata, int 
 
   // Only emit HELP and TYPE once per base name.
   if (my_state->prometheus_v2_emitted.find(sanitized_name) == my_state->prometheus_v2_emitted.end()) {
-    char help_buffer[512];
-    snprintf(help_buffer, sizeof(help_buffer), "# HELP %s %s\n", sanitized_name.c_str(), name);
-    APPEND(help_buffer);
+    // Use std::string to avoid buffer overflow with long metric names
+    std::string help_line = "# HELP " + sanitized_name + " " + std::string(name) + "\n";
+    APPEND(help_line.c_str());
 
     const char *type_str = (data_type == TS_RECORDDATATYPE_COUNTER) ? "counter" : "gauge";
-    char        type_buffer[256];
-    snprintf(type_buffer, sizeof(type_buffer), "# TYPE %s %s\n", sanitized_name.c_str(), type_str);
-    APPEND(type_buffer);
+    std::string type_line = "# TYPE " + sanitized_name + " " + std::string(type_str) + "\n";
+    APPEND(type_line.c_str());
 
     my_state->prometheus_v2_emitted.insert(sanitized_name);
   }
 
-  char        val_buffer[512];
-  const char *labels_start = v2.labels.empty() ? "" : "{";
-  const char *labels_end   = v2.labels.empty() ? "" : "}";
+  // Use std::string to avoid buffer overflow with long metric names and labels
+  std::string val_line;
+  if (!v2.labels.empty()) {
+    val_line = sanitized_name + "{" + v2.labels + "}";
+  } else {
+    val_line = sanitized_name;
+  }
 
   if (data_type == TS_RECORDDATATYPE_COUNTER) {
-    snprintf(val_buffer, sizeof(val_buffer), "%s%s%s%s %" PRIu64 "\n", sanitized_name.c_str(), labels_start, v2.labels.c_str(),
-             labels_end, wrap_unsigned_counter(datum->rec_counter));
+    char num_buf[32];
+    snprintf(num_buf, sizeof(num_buf), " %" PRIu64 "\n", wrap_unsigned_counter(datum->rec_counter));
+    val_line += num_buf;
   } else if (data_type == TS_RECORDDATATYPE_INT) {
-    snprintf(val_buffer, sizeof(val_buffer), "%s%s%s%s %" PRIu64 "\n", sanitized_name.c_str(), labels_start, v2.labels.c_str(),
-             labels_end, wrap_unsigned_counter(datum->rec_int));
+    char num_buf[32];
+    snprintf(num_buf, sizeof(num_buf), " %" PRIu64 "\n", wrap_unsigned_counter(datum->rec_int));
+    val_line += num_buf;
   } else if (data_type == TS_RECORDDATATYPE_FLOAT) {
-    snprintf(val_buffer, sizeof(val_buffer), "%s%s%s%s %f\n", sanitized_name.c_str(), labels_start, v2.labels.c_str(), labels_end,
-             datum->rec_float);
+    char num_buf[32];
+    snprintf(num_buf, sizeof(num_buf), " %f\n", datum->rec_float);
+    val_line += num_buf;
   }
-  APPEND(val_buffer);
+  APPEND(val_line.c_str());
 }
 
 static void
