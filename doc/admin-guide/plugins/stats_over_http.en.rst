@@ -111,14 +111,19 @@ Prometheus formatted output is also supported via the ``Accept`` header:
 
 Alternatively, the output format can be specified as a suffix to the configured
 path in the HTTP request target.  The supported suffixes are ``/json``,
-``/csv``, and ``/prometheus``.  For example, if the path is set to ``/_stats``
-(the default), you can access the stats in CSV format by using the URL::
+``/csv``, ``/prometheus``, and ``/prometheus_v2``.  For example, if the path
+is set to ``/_stats`` (the default), you can access the stats in CSV format by
+using the URL::
 
     http://host:port/_stats/csv
 
-The Prometheus format can be requested by using the URL::
+The Prometheus format (flat) can be requested by using the URL::
 
     http://host:port/_stats/prometheus
+
+The Prometheus v2 format (labeled) can be requested by using the URL::
+
+    http://host:port/_stats/prometheus_v2
 
 The JSON format is the default, but you can also access it explicitly by using the URL::
 
@@ -130,8 +135,8 @@ the ``Accept`` header.
 
 In either case the ``Content-Type`` header returned by ``stats_over_http.so`` will
 reflect the content that has been returned: ``text/json``, ``text/csv``, or
-``text/plain; version=0.0.4; charset=utf-8`` for JSON, CSV, and Prometheus
-formats respectively.
+``text/plain; charset=utf-8``.
+
 
 Stats over http also accepts returning data in gzip or br compressed format per the
 ``Accept-encoding`` header. If the header is present, the plugin will return the
