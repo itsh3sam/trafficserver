@@ -1,6 +1,6 @@
 /** @file
 
-  A brief file description
+  stats_over_http: Expose Traffic Server statistics over HTTP in JSON, CSV, or Prometheus format.
 
   @section license License
 
@@ -21,7 +21,7 @@
   limitations under the License.
  */
 
-/* stats.c:  expose traffic server stats over http
+/* stats_over_http.cc:  expose traffic server stats over http
  */
 
 #include <arpa/inet.h>
