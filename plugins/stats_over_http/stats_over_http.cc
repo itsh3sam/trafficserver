@@ -25,6 +25,7 @@
  */
 
 #include <arpa/inet.h>
+#include <cassert>
 #include <cctype>
 #include <chrono>
 #include <cinttypes>
@@ -570,16 +571,8 @@ static
  * @param[in] name The metric name to parse.
  * @return A prometheus_v2_metric struct containing the base name and labels.
  */
-static
-// Remove this check when we drop support for pre-13 GCC versions.
-#if defined(__cpp_lib_constexpr_string) && __cpp_lib_constexpr_string >= 201907L
-// Clang <= 16 doesn't fully support constexpr std::string.
-#if !defined(__clang__) || __clang_major__ > 16
-  constexpr
-#endif
-#endif
-  prometheus_v2_metric
-  parse_metric_v2(std::string_view name)
+static prometheus_v2_metric
+parse_metric_v2(std::string_view name)
 {
   swoc::TextView name_view{name};
   std::string    labels;
@@ -1201,6 +1194,11 @@ TSPluginInit(int argc, const char *argv[])
   TSCont           main_cont, config_cont;
   config_holder_t *config_holder;
 
+#ifdef DEBUG
+  // Run tests in debug builds
+  test_parse_metric_v2();
+#endif
+
   info.plugin_name   = PLUGIN_NAME;
   info.vendor_name   = "Apache Software Foundation";
   info.support_email = "dev@trafficserver.apache.org";
@@ -1471,48 +1469,48 @@ config_handler(TSCont cont, TSEvent /* event ATS_UNUSED */, void * /* edata ATS_
 // Compilation time unit tests.
 //
 #ifdef DEBUG
+void
+test_parse_metric_v2()
+{
+  // Basic method extraction
+  assert(parse_metric_v2("proxy.process.http.get_requests").name == "proxy.process.http.requests");
+  assert(parse_metric_v2("proxy.process.http.get_requests").labels == "method=\"get\"");
+
+  // Status code extraction
+  assert(parse_metric_v2("proxy.process.http.200_responses").name == "proxy.process.http.responses");
+  assert(parse_metric_v2("proxy.process.http.200_responses").labels == "status=\"200\"");
+
+  // Result extraction
+  assert(parse_metric_v2("proxy.process.http.cache_hit_fresh").name == "proxy.process.http.cache_fresh");
+  assert(parse_metric_v2("proxy.process.http.cache_hit_fresh").labels == "result=\"hit\"");
+
+  // Category + Index extraction (volume_0)
+  assert(parse_metric_v2("proxy.process.cache.volume_0.lookup.success").name == "proxy.process.cache.volume.lookup.success");
+  assert(parse_metric_v2("proxy.process.cache.volume_0.lookup.success").labels == "volume=\"0\"");
+
+  // Time buckets (le labels)
+  // Ensure "ms" without a number is NOT a bucket
+  assert(parse_metric_v2("proxy.process.http.avg_close_ms").name == "proxy.process.http.avg_close.ms");
+  assert(parse_metric_v2("proxy.process.http.avg_close_ms").labels == "");
+
+  // Time bucket with a number
+  assert(parse_metric_v2("proxy.process.http.time_10ms").name == "proxy.process.http.time");
+  assert(parse_metric_v2("proxy.process.http.time_10ms").labels == "le=\"10ms\"");
+
+  // Multiple labels (method + status)
+  // proxy.process.http.get.200_responses -> proxy.process.http.responses{method="get", status="200"}
+  assert(parse_metric_v2("proxy.process.http.get.200_responses").name == "proxy.process.http.responses");
+  assert(parse_metric_v2("proxy.process.http.get.200_responses").labels == "method=\"get\", status=\"200\"");
+
+  // Metric with brackets
+  assert(parse_metric_v2("proxy.process.http.connection_errors[500]").name == "proxy.process.http.connection_errors");
+  assert(parse_metric_v2("proxy.process.http.connection_errors[500]").labels == "status=\"500\"");
+}
+
 // Remove this check when we drop support for pre-13 GCC versions.
 #if defined(__cpp_lib_constexpr_string) && __cpp_lib_constexpr_string >= 201907L
 // Clang <= 16 doesn't fully support constexpr std::string.
 #if !defined(__clang__) || __clang_major__ > 16
-constexpr void
-test_parse_metric_v2()
-{
-  // Basic method extraction
-  static_assert(parse_metric_v2("proxy.process.http.get_requests").name == "proxy.process.http.requests");
-  static_assert(parse_metric_v2("proxy.process.http.get_requests").labels == "method=\"get\"");
-
-  // Status code extraction
-  static_assert(parse_metric_v2("proxy.process.http.200_responses").name == "proxy.process.http.responses");
-  static_assert(parse_metric_v2("proxy.process.http.200_responses").labels == "status=\"200\"");
-
-  // Result extraction
-  static_assert(parse_metric_v2("proxy.process.http.cache_hit_fresh").name == "proxy.process.http.cache_fresh");
-  static_assert(parse_metric_v2("proxy.process.http.cache_hit_fresh").labels == "result=\"hit\"");
-
-  // Category + Index extraction (volume_0)
-  static_assert(parse_metric_v2("proxy.process.cache.volume_0.lookup.success").name == "proxy.process.cache.volume.lookup.success");
-  static_assert(parse_metric_v2("proxy.process.cache.volume_0.lookup.success").labels == "volume=\"0\"");
-
-  // Time buckets (le labels)
-  // Ensure "ms" without a number is NOT a bucket
-  static_assert(parse_metric_v2("proxy.process.http.avg_close_ms").name == "proxy.process.http.avg_close.ms");
-  static_assert(parse_metric_v2("proxy.process.http.avg_close_ms").labels == "");
-
-  // Time bucket with a number
-  static_assert(parse_metric_v2("proxy.process.http.time_10ms").name == "proxy.process.http.time");
-  static_assert(parse_metric_v2("proxy.process.http.time_10ms").labels == "le=\"10ms\"");
-
-  // Multiple labels (method + status)
-  // proxy.process.http.get.200_responses -> proxy.process.http.responses{method="get", status="200"}
-  static_assert(parse_metric_v2("proxy.process.http.get.200_responses").name == "proxy.process.http.responses");
-  static_assert(parse_metric_v2("proxy.process.http.get.200_responses").labels == "method=\"get\", status=\"200\"");
-
-  // Metric with brackets
-  static_assert(parse_metric_v2("proxy.process.http.connection_errors[500]").name == "proxy.process.http.connection_errors");
-  static_assert(parse_metric_v2("proxy.process.http.connection_errors[500]").labels == "status=\"500\"");
-}
-
 constexpr void
 test_sanitize_metric_name_for_prometheus()
 {
@@ -1583,8 +1581,6 @@ test_sanitize_metric_name_for_prometheus()
   static_assert(sanitize_metric_name_for_prometheus("123foo---bar") == "_123foo___bar");
   static_assert(sanitize_metric_name_for_prometheus("foo [[[bar]]]") == "foo____bar___");
   static_assert(sanitize_metric_name_for_prometheus("foo@#$%bar") == "foo____bar");
-
-  test_parse_metric_v2();
 }
 #endif // !defined(__clang__) || __clang_major__ > 16
 #endif // defined(__cpp_lib_constexpr_string) && __cpp_lib_constexpr_string >= 201907L
