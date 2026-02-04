@@ -622,9 +622,9 @@ static
     labels += "\"";
   };
 
-  constexpr std::string_view methods[]    = {"get",      "post",      "head",          "put",   "delete",           "options",
-                                             "trace",    "connect",   "push",          "purge", "extension_method", "incoming",
-                                             "outgoing", "completed", "invalid_client"};
+  constexpr std::string_view methods[]    = {"get",   "post",    "head", "put",   "delete",          "options",
+                                             "trace", "connect", "push", "purge", "extension_method"};
+  constexpr std::string_view directions[] = {"incoming", "outgoing"};
   constexpr std::string_view results[]    = {"hit", "miss", "error", "errors", "success", "failure"};
   constexpr std::string_view categories[] = {"volume", "thread", "interface", "net", "host", "port"};
 
@@ -660,6 +660,11 @@ static
     if (token.length() == 3 && (token[0] >= '0' && token[0] <= '9') && ((token[1] >= '0' && token[1] <= '9') || token[1] == 'x') &&
         ((token[2] >= '0' && token[2] <= '9') || token[2] == 'x')) {
       add_label("status", token);
+      token_handled = true;
+    }
+    // Direction (incoming / outgoing)
+    else if (contains(directions, sizeof(directions) / sizeof(directions[0]), token)) {
+      add_label("direction", token);
       token_handled = true;
     }
     // Methods
@@ -1474,36 +1479,38 @@ constexpr void
 test_parse_metric_v2()
 {
   // Basic method extraction
-  static_assert(parse_metric_v2("proxy.process.http.get_requests") ==
-                prometheus_v2_metric{"proxy.process.http.requests", "method=\"get\""});
+  static_assert(parse_metric_v2("proxy.process.http.get_requests").name == "proxy.process.http.requests");
+  static_assert(parse_metric_v2("proxy.process.http.get_requests").labels == "method=\"get\"");
 
   // Status code extraction
-  static_assert(parse_metric_v2("proxy.process.http.200_responses") ==
-                prometheus_v2_metric{"proxy.process.http.responses", "status=\"200\""});
+  static_assert(parse_metric_v2("proxy.process.http.200_responses").name == "proxy.process.http.responses");
+  static_assert(parse_metric_v2("proxy.process.http.200_responses").labels == "status=\"200\"");
 
   // Result extraction
-  static_assert(parse_metric_v2("proxy.process.http.cache_hit_fresh") ==
-                prometheus_v2_metric{"proxy.process.http.cache_fresh", "result=\"hit\""});
+  static_assert(parse_metric_v2("proxy.process.http.cache_hit_fresh").name == "proxy.process.http.cache_fresh");
+  static_assert(parse_metric_v2("proxy.process.http.cache_hit_fresh").labels == "result=\"hit\"");
 
   // Category + Index extraction (volume_0)
-  static_assert(parse_metric_v2("proxy.process.cache.volume_0.lookup.success") ==
-                prometheus_v2_metric{"proxy.process.cache.volume.lookup.success", "volume=\"0\""});
+  static_assert(parse_metric_v2("proxy.process.cache.volume_0.lookup.success").name == "proxy.process.cache.volume.lookup.success");
+  static_assert(parse_metric_v2("proxy.process.cache.volume_0.lookup.success").labels == "volume=\"0\"");
 
   // Time buckets (le labels)
   // Ensure "ms" without a number is NOT a bucket
-  static_assert(parse_metric_v2("proxy.process.http.avg_close_ms") == prometheus_v2_metric{"proxy.process.http.avg_close.ms", ""});
+  static_assert(parse_metric_v2("proxy.process.http.avg_close_ms").name == "proxy.process.http.avg_close.ms");
+  static_assert(parse_metric_v2("proxy.process.http.avg_close_ms").labels == "");
 
   // Time bucket with a number
-  static_assert(parse_metric_v2("proxy.process.http.time_10ms") == prometheus_v2_metric{"proxy.process.http.time", "le=\"10ms\""});
+  static_assert(parse_metric_v2("proxy.process.http.time_10ms").name == "proxy.process.http.time");
+  static_assert(parse_metric_v2("proxy.process.http.time_10ms").labels == "le=\"10ms\"");
 
   // Multiple labels (method + status)
   // proxy.process.http.get.200_responses -> proxy.process.http.responses{method="get", status="200"}
-  static_assert(parse_metric_v2("proxy.process.http.get.200_responses") ==
-                prometheus_v2_metric{"proxy.process.http.responses", "method=\"get\", status=\"200\""});
+  static_assert(parse_metric_v2("proxy.process.http.get.200_responses").name == "proxy.process.http.responses");
+  static_assert(parse_metric_v2("proxy.process.http.get.200_responses").labels == "method=\"get\", status=\"200\"");
 
   // Metric with brackets
-  static_assert(parse_metric_v2("proxy.process.http.connection_errors[500]") ==
-                prometheus_v2_metric{"proxy.process.http.connection_errors", "status=\"500\""});
+  static_assert(parse_metric_v2("proxy.process.http.connection_errors[500]").name == "proxy.process.http.connection_errors");
+  static_assert(parse_metric_v2("proxy.process.http.connection_errors[500]").labels == "status=\"500\"");
 }
 
 constexpr void
